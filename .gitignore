@@ -1,3 +1,6 @@
+#lib folder
+/spinnaker
+
 # Prerequisites
 *.d
 
