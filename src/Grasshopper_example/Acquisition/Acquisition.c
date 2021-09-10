@@ -29,7 +29,7 @@ bool8_t IsAvailableAndReadable(spinNodeHandle hNode, char nodeName[])
     err = spinNodeIsAvailable(hNode, &pbAvailable); //GenAPI
     if (err != SPINNAKER_ERR_SUCCESS)
     {
-        printf("Unable to retrieve node availability (%s node), with error %d...\n\n", nodeName, err);
+        printf("Unable to retrieve node  availability (%s node), with error %d...\n\n", nodeName, err);
     }
 
     bool8_t pbReadable = False;
@@ -310,7 +310,7 @@ spinError RunSingleCamera(spinCamera hCam, acquisition_mode mode, int arg_num, .
         // Ensure image completion
         // inquire info from imageControl node
         bool8_t failDetect = IsImageIncomplete(&hResultImage);
-        
+
         // If the image is complete
         // proceed to convert and save
         if(!failDetect){
