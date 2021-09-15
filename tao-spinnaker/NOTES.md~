@@ -1,0 +1,7 @@
+# Spinnaker library for Cameras
+
+## Handles
+
+The Spinnaker SDK do not directly expose structures but provide opaque handles
+which are simple pointer.  It seems that the `NULL` value is suitable for
+an unitialized or a destroyed handle.
