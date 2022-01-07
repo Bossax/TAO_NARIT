@@ -5,6 +5,9 @@
 # Unignore all with extensions
 !*.*
 
+#Unignore Makefiles
+!Makefile
+
 # Unignore all dirs
 !*/
 
@@ -67,4 +70,9 @@ Mkfile.old
 dkms.conf
 
 #Data
+*.tiff
+*.png
 *.jpg
+*.fits*
+*.Z*
+*.pdf

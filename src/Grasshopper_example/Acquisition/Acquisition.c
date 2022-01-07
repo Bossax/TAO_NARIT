@@ -165,6 +165,7 @@ spinError RunSingleCamera(spinCamera hCam, acquisition_mode mode, int arg_num, .
     spinError err = SPINNAKER_ERR_SUCCESS;
 
     // Initialize camera
+    
     err = spinCameraInit(hCam);
     if (err != SPINNAKER_ERR_SUCCESS)
     {

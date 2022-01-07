@@ -117,6 +117,12 @@ tao_status continuousAcquisition(NcCam cam, int nbrImagesToSave){
     printf("Cannot abort acquisition \n" );
   }
 
+  // close shutter
+  st = tao_nuvu_set_shuttermode(cam, CLOSE);
+  if (st != TAO_OK) {
+    fatal_error();
+  }
+
   return st;
 
 }

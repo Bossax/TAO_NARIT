@@ -31,4 +31,4 @@ libtao-spinnaker.a: $(TAO_SPINNAKER_OBJS)						# implicit archive rule
 tao_spinnaker_test-01: tao_spinnaker_test-01.c tao-spinnaker.h libtao-spinnaker.a
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ -L. -ltao-spinnaker $(TAO_LIBS) $(SPINNAKER_LIBS)
 
-.PHOONY: all default clean dist-clean
+.PHONY: all default clean dist-clean
