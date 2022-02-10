@@ -24,6 +24,8 @@ CFPPLAGS += -I${NC_UTILITY}
 TAO_NUVU_OBJS = api.o
 TAO_NUVU_TESTS = tao_nuvu_test-01
 
+GTK_FLAG = `pkg-config --cflags gtk+-3.0`
+GTK_LIB =  `pkg-config --libs gtk+-3.0`
 
 # RULES
 .PHONY: all clean dist-clean
@@ -44,3 +46,6 @@ libtao-nuvu.a: $(TAO_NUVU_OBJS)						# implicit archive rule
 
 tao_nuvu_test-01: tao_nuvu_test-01.c tao_nuvu.h libtao-nuvu.a
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ -L. -ltao-nuvu $(TAO_LIBS) $(NC_LIBS)
+
+start_nuvu: acquisition_with_display.c tao_nuvu.h libtao-nuvu.a
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(GTK_FLAG) $< -o $@ -L. -ltao-nuvu $(TAO_LIBS) $(NC_LIBS) $(GTK_LIB) -lm

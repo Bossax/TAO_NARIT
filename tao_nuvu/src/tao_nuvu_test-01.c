@@ -32,34 +32,34 @@ tao_status initialize(NcCam* cam){
 	double readoutTime, waitingTime, exposureTime;
 
   printf("Open camera...\n" );
-  st = tao_nuvu_cam_open(NC_AUTO_UNIT, NC_AUTO_CHANNEL, 4, cam);
+  st = cam_open(NC_AUTO_UNIT, NC_AUTO_CHANNEL, 4, cam);
   if( st != TAO_OK){
      fatal_error();
   }
 
-  st = tao_nuvu_readout_mode(*cam, 1);
+  st = set_readout_mode(*cam, 1);
   if( st != TAO_OK){
      fatal_error();
   }
 
-  st = tao_nuvu_get_readout_time(*cam, &readoutTime);
+  st = get_readout_time(*cam, &readoutTime);
   if( st != TAO_OK){
      fatal_error();
   }
 
 	exposureTime = readoutTime;
-  st = tao_nuvu_exposure_time(*cam, exposureTime);
+  st = set_exposure_time(*cam, exposureTime);
   if( st != TAO_OK){
      fatal_error();
   }
 
   waitingTime = 0.1 * exposureTime;
-  st = tao_nuvu_set_waiting_time(*cam, waitingTime);
+  st = set_waiting_time(*cam, waitingTime);
   if( st != TAO_OK){
      fatal_error();
   }
 
-  st = tao_nuvu_set_timeout(*cam ,  (int)(waitingTime + readoutTime + exposureTime) + 1000);
+  st = set_timeout(*cam ,  (int)(waitingTime + readoutTime + exposureTime) + 1000);
   if( st != TAO_OK){
      fatal_error();
   }
@@ -81,13 +81,13 @@ tao_status continuousAcquisition(NcCam cam, int nbrImagesToSave){
 
   // open shutter
   enum ShutterMode mode = OPEN;
-  st = tao_nuvu_set_shuttermode(cam, OPEN);
+  st = set_shuttermode(cam, mode);
   if (st != TAO_OK) {
     fatal_error();
   }
   printf("Acquiring images...\n" );
   // start acquisition
-  st = tao_nuvu_cam_start(cam, nbrImagesToSave);
+  st = cam_start(cam, nbrImagesToSave);
   if (st != TAO_OK) {
     fatal_error();
   }
@@ -97,13 +97,13 @@ tao_status continuousAcquisition(NcCam cam, int nbrImagesToSave){
     // create image name
   	sprintf(imageName, "Image_%d", i);
     printf("Reading image %d \n", i );
-    st = tao_nuvu_read_image(cam,&ncImage)  ;
+    st = read_uint16_image(cam,&ncImage)  ;
     if(st != TAO_OK){
       fatal_error();
     }
 
     printf("Saving image \"%s\"\n", imageName);
-    st = tao_nuvu_save_image(cam, ncImage, imageName, FITS, "Image acquired in continuous acquisition", 1);
+    st = save_image(cam, ncImage, imageName, FITS, "Image acquired in continuous acquisition", 1);
 
     if(st != TAO_OK){
       fatal_error();
@@ -112,13 +112,13 @@ tao_status continuousAcquisition(NcCam cam, int nbrImagesToSave){
   }
 
   // abort acquisition
-  st = tao_nuvu_cam_abort(cam);
+  st = cam_abort(cam);
   if(st != TAO_OK){
     printf("Cannot abort acquisition \n" );
   }
 
   // close shutter
-  st = tao_nuvu_set_shuttermode(cam, CLOSE);
+  st = set_shuttermode(cam, CLOSE);
   if (st != TAO_OK) {
     fatal_error();
   }
@@ -137,7 +137,7 @@ int main(int argc, char const *argv[]) {
   status = initialize(&cam);
 
   double detector_temp = 0.0;
-  tao_nuvu_detector_temperature(cam, &detector_temp);
+  detector_temperature(cam, &detector_temp);
 
   printf("Temperature = %ld \n",(long)detector_temp );
   if (status == TAO_OK) {
@@ -149,7 +149,7 @@ int main(int argc, char const *argv[]) {
     fatal_error();
   }
 
-  status = tao_nuvu_cam_close(cam);
+  status = cam_close(cam);
   if(status != TAO_OK){
     fatal_error();
   }

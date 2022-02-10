@@ -1,10 +1,11 @@
 #include "tao_nuvu.h"
 #include <stdlib.h>
+#include <math.h>
 
 /*-------------------------------------------------------------------------*/
 /* ERROR */
 
-void tao_nuvu_error_push(
+void error_push(
                           const char* func,
                           int err)
 {
@@ -16,11 +17,11 @@ void tao_nuvu_error_push(
 /* Times*/
 
 // Get readout time
-tao_status tao_nuvu_get_readout_time(NcCam cam, double* readoutTime){
+tao_status get_readout_time(NcCam cam, double* readoutTime){
     int err = NC_SUCCESS;
     err =  ncCamGetReadoutTime(cam, readoutTime);
     if(err){
-      tao_nuvu_error_push(__func__, err);
+      error_push(__func__, err);
       return TAO_ERROR;
     }
 
@@ -30,11 +31,11 @@ tao_status tao_nuvu_get_readout_time(NcCam cam, double* readoutTime){
 // Get readout mode
 
 // Set Readout mode
-tao_status tao_nuvu_readout_mode(NcCam cam,int modeNum ){
+tao_status set_readout_mode(NcCam cam,int modeNum ){
   int err = NC_SUCCESS;
   err =  ncCamSetReadoutMode(cam, modeNum);
   if(err){
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
 
@@ -42,22 +43,22 @@ tao_status tao_nuvu_readout_mode(NcCam cam,int modeNum ){
 }
 
 // Set exposure time
-tao_status tao_nuvu_exposure_time(NcCam cam,double exposureTime){
+tao_status set_exposure_time(NcCam cam,double exposureTime){
   int err = NC_SUCCESS;
   err =  ncCamSetExposureTime(cam, exposureTime);
   if(err){
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
 
   return TAO_OK;
 }
 // Set waiting time
-tao_status tao_nuvu_set_waiting_time(NcCam cam,double waitingTime){
+tao_status set_waiting_time(NcCam cam,double waitingTime){
   int err = NC_SUCCESS;
   err =  ncCamSetWaitingTime(cam, waitingTime);
   if(err){
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
 
@@ -66,13 +67,13 @@ tao_status tao_nuvu_set_waiting_time(NcCam cam,double waitingTime){
 
 
 // Set time out
-tao_status tao_nuvu_set_timeout(NcCam cam,
+tao_status set_timeout(NcCam cam,
                                 int timeTimeout)
 {
   int err = NC_SUCCESS;
   err =  ncCamSetTimeout(cam, timeTimeout);
   if(err){
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
 
@@ -85,7 +86,7 @@ tao_status tao_nuvu_set_timeout(NcCam cam,
 /*
 *   function pointer to opeartion on the emMax and emMin
 */
-tao_status changeEmGain(  NcCam camera,
+tao_status change_em_gain(  NcCam camera,
                           int (*emGainOp)(int* num),
                           int emGainInput)
 {
@@ -102,7 +103,7 @@ tao_status changeEmGain(  NcCam camera,
 	error = ncCamGetReadoutMode(camera, 1, &ampliType, 0, 0, 0);
 	if (error) {
 
-    tao_nuvu_error_push("ncCamGetReadoutMode", error);
+    error_push("ncCamGetReadoutMode", error);
     return TAO_ERROR;
 	}
   // Check Calibrated / Raw EM gain availability
@@ -123,19 +124,19 @@ tao_status changeEmGain(  NcCam camera,
         //NC_ERROR_CAM_NO_FEATURE is expected
         // if the raw EM gain is simply not supported
 				// Some other error happened
-        tao_nuvu_error_push("Raw EM Gain unavailable \n", error);
+        error_push("Raw EM Gain unavailable \n", error);
 				return TAO_ERROR;
 			}
 		}
 		else {
-			tao_nuvu_error_push("Calibrated EM Gain unavailable \n \n", error);
+			error_push("Calibrated EM Gain unavailable \n \n", error);
 		}
 	}
 
 	if (emCalGainAvailable == 1) {
 		error = ncCamGetCalibratedEmGainRange(camera, &emGainMin, &emGainMax);
 		if (error) {
-			tao_nuvu_error_push("ncCamGetCalibratedEmGainRange", error);
+			error_push("ncCamGetCalibratedEmGainRange", error);
       return TAO_ERROR;
 		}
     *(emGainArray) = emGainMin;
@@ -147,14 +148,14 @@ tao_status changeEmGain(  NcCam camera,
 		//Sets the calibrated EM gain on the camera
 		error = ncCamSetCalibratedEmGain(camera, emGain);
 		if (error) {
-      tao_nuvu_error_push("ncCamSetCalibratedEmGain", error);
+      error_push("ncCamSetCalibratedEmGain", error);
 			return TAO_ERROR;
 		}
 	}
 	else if (emRawGainAvailable == 1) {
 		error = ncCamGetRawEmGainRange(camera, &emGainMin, &emGainMax);
 		if (error) {
-      tao_nuvu_error_push("ncCamGetRawEmGainRange", error);
+      error_push("ncCamGetRawEmGainRange", error);
 			return TAO_ERROR;
 		}
 
@@ -182,6 +183,56 @@ tao_status changeEmGain(  NcCam camera,
 
 }
 
+tao_status change_analog_gain(NcCam camera, int gain)
+{
+
+	int	error = NC_SUCCESS;		//We initialize an error flag variable
+	int	analogGain, analogGainMin, analogGainMax;
+
+	error = ncCamGetAnalogGainRange(camera, &analogGainMin, &analogGainMax);
+	if (error) {
+
+		error_push("ncCamGetAnalogGainRange", error);
+		return TAO_ERROR;
+	}
+
+	//For the purpose of this example we will use the median value
+	analogGain = (analogGainMin + analogGainMax) / 2;
+	printf("Analog gain = %d\n", analogGain);
+
+	//Sets the analog gain on the camera
+	error = ncCamSetAnalogGain(camera, analogGain);
+	if (error) {
+
+		error_push("ncCamSetAnalogGain", error);
+		return TAO_ERROR;
+	}
+
+	return error;
+}
+
+tao_status change_analog_offset(NcCam camera, int offset)
+{
+
+	int	error = NC_SUCCESS;		//We initialize an error flag variable
+	int	analogOffset, analogOffsetMin, analogOffsetMax;
+
+	error = ncCamGetAnalogOffsetRange(camera, &analogOffsetMin, &analogOffsetMax);
+	if (error) {
+		return error;
+	}
+
+	//For the purpose of this example we will use the median value
+	analogOffset = (analogOffsetMin + analogOffsetMax) / 2;
+
+	//Sets the analog offset on the camera
+	error = ncCamSetAnalogOffset(camera, analogOffset);
+	if (error) {
+		return error;
+	}
+
+	return error;
+}
 
 /*---------------------------------------------------------------------------*/
 /* Processing */
@@ -219,14 +270,14 @@ tao_status changeEmGain(  NcCam camera,
 
 /*---------------------------------------------------------------------------*/
 /* Temperature */
-tao_status tao_nuvu_detector_temperature(NcCam cam, double* temp_ptr)
+tao_status detector_temperature(NcCam cam, double* temp_ptr)
 {
   int err = NC_SUCCESS;
 
   err = ncCamGetDetectorTemp(cam, temp_ptr);
   if(err)
   {
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
   return TAO_OK;
@@ -242,60 +293,126 @@ tao_status tao_nuvu_detector_temperature(NcCam cam, double* temp_ptr)
 /*--------------------------- Camera Utilities ------------------------------*/
 /*-------------------------------------------------------------------------*/
 // Open
-tao_status tao_nuvu_cam_open(int unit, int channel, int nbrBuffer, NcCam* cam)
+tao_status cam_open(int unit, int channel, int nbrBuffer, NcCam* cam)
 {
   int err = NC_SUCCESS;
   err =  ncCamOpen(unit, channel, nbrBuffer, cam);
 
   if(err){
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
 
   return TAO_OK;
 }
 // Start
-tao_status tao_nuvu_cam_start(NcCam cam,
-                              int nbrImages)
+tao_status cam_set_ready(NcCam cam){
+	int err = NC_SUCCESS;
+  err = ncCamPrepareAcquisition(cam,1);
+	if(err){
+    error_push(__func__, err);
+    return TAO_ERROR;
+  }
+
+  return TAO_OK;
+}
+
+tao_status cam_start(NcCam cam, int nbrImages)
 {
   int err = NC_SUCCESS;
   err =  ncCamStart(cam, nbrImages);
 
   if(err){
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
 
   return TAO_OK;
 }
 // Shutter mode
-tao_status tao_nuvu_set_shuttermode(NcCam cam,
+tao_status set_shuttermode(NcCam cam,
                                     enum ShutterMode mode)
 {
   int err = NC_SUCCESS;
   err =  ncCamSetShutterMode(cam, mode);
   if(err){
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
 
   return TAO_OK;
 }
-// Read
-tao_status tao_nuvu_read_image(NcCam cam,
+// Read and return unsigned short
+tao_status read_uint16_image(NcCam cam,
                               NcImage** image_ptrptr)
 {
   int err = NC_SUCCESS;
   err =  ncCamRead(cam, image_ptrptr);
   if(err){
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
 
   return TAO_OK;
 }
+
+tao_status read_uint32_image(NcCam cam, uint32_t* image)
+{
+	int err = NC_SUCCESS;
+  err =  ncCamReadUInt32(cam, image);
+  if(err){
+    error_push(__func__, err);
+    return TAO_ERROR;
+  }
+
+  return TAO_OK;
+
+}
+
+//apply ROI
+tao_status set_ROI(NcCam camera,int width, int height)
+{
+
+		int error = NC_SUCCESS;
+		int fullWidth, fullHeight,roiWidth, roiHeight;
+
+		//Recover the range available for ROIs
+		error = ncCamGetMaxSize(camera, &fullWidth, &fullHeight);
+		if (error) {
+			return error;
+		}
+
+		// check dimension inputs
+		roiWidth = (width > fullWidth) ? fullWidth : width;
+		roiHeight = (height > fullHeight) ? fullHeight : height;
+
+		int offsetX = (int) floor((fullWidth-roiWidth)/2);
+		int offsetY = (int) floor((fullHeight-roiHeight)/2);
+
+		//There must always be at least one ROI.
+		//The first ROI is initially the entire available image area,
+		//with zero horizontal and vertical offset.
+		//We will set its size to a small fraction of that available;
+		//the offset will be unchanged
+		error = ncCamSetMRoiSize(camera, 0, roiWidth, roiHeight);
+		if (error) {
+			return error;
+		}
+
+		error = ncCamSetMRoiPosition(camera, 0, offsetX, offsetY);
+		if (error) {
+			return error;
+		}
+
+		//Synchronise the camera with the required ROI configuration
+		error = ncCamMRoiApply(camera);
+		if (error) {
+			return error;
+		}
+		return TAO_OK;
+}
 // SaveImage
-tao_status tao_nuvu_save_image(NcCam cam,
+tao_status save_image(NcCam cam,
                               NcImage* image_ptr,
                               const char* save_name,
                               enum ImageFormat saveFormat,
@@ -305,25 +422,25 @@ tao_status tao_nuvu_save_image(NcCam cam,
   int err = NC_SUCCESS;
   err =  ncCamSaveImage(cam, image_ptr, save_name, saveFormat, addComments, overwriteFlag);
   if(err){
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
 
   return TAO_OK;
 }
 // Abort
-tao_status tao_nuvu_cam_abort(NcCam cam){
+tao_status cam_abort(NcCam cam){
   int err = NC_SUCCESS;
   err = ncCamAbort(cam);
   if(err){
-    tao_nuvu_error_push(__func__, err);
+    error_push(__func__, err);
     return TAO_ERROR;
   }
 
   return TAO_OK;
 }
 // Close
-tao_status tao_nuvu_cam_close(NcCam cam){
+tao_status cam_close(NcCam cam){
   int error =NC_SUCCESS;
 
   error = ncCamClose(cam);
