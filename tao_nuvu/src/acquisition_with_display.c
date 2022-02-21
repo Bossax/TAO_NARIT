@@ -7,7 +7,10 @@
 #define WIDTH 128
 #define HEIGHT 128
 #define BYTE_PER_PIXEL 1
-
+#define W_WIDTH 800
+#define W_HEIGHT 800
+#define SCALE_FACTOR 5
+#define BYTES_PER_PIXEL 1
 
 // data struct
 typedef struct imageBuffer{
@@ -18,8 +21,11 @@ typedef struct imageBuffer{
 } imageBuffer;
 
 // global
-static int uint16size = (int) pow(2,16);
+NcCam	cam = NULL;
 imageBuffer buff;
+int isRotate =  FALSE;
+int degree = 0;
+static int uint16size = (int) pow(2,16);
 static int hasRun = 0;
 
 // ---Utility funcitonsd---- //
@@ -50,38 +56,7 @@ void scale_image(uint16_t *image, unsigned char *new_image)
 	}
 }
 //
-void printData1(unsigned char * data)
-{
-	for (int j =0; j < WIDTH*HEIGHT; j++){
-		printf("%d ", *(data + j));
-		if (j%WIDTH == 0){
-			printf("\n");
-		}
-	}
-}
 
-void printData2(unsigned short * data)
-{
-	for (int j =0; j < WIDTH*HEIGHT; j++){
-		printf("%d ", *(data + j));
-		if (j%WIDTH == 0){
-			printf("\n");
-		}
-	}
-}
-
-// resize array
-void resize_array (unsigned char** init_array,  unsigned char* new_array,
-	 								int rows, int cols)
-{
-	for(int row = 0; row < rows; row++)
-	 {
-		  for(int col = 0; col < cols; col++)
-			{
-				*(new_array+row*WIDTH+col) = *(*(init_array+row)+col);
-			}
-	 }
-}
 
 /*------ Camera operations ------- */
 tao_status initialize(NcCam* cam, double exposureTime, int gain){
@@ -166,6 +141,16 @@ tao_status acquisition(NcCam cam, unsigned char	*image_handle){
 }
 
 
+gboolean temperature_update(gpointer user_data){
+
+		NcCam cam = (NcCam) user_data;
+		double detector_temp = 0.0;
+		detector_temperature(cam, &detector_temp);
+		printf("Temperature = %ld \n", (long)detector_temp );
+		return TRUE;
+
+}
+
 // --- worker functions --- //
 // createImage
 // grab unsigned short 1-D array from NcImage
@@ -173,38 +158,20 @@ tao_status acquisition(NcCam cam, unsigned char	*image_handle){
 // put data in the buffer struct
 void* createImage(void* arg){
 
-		NcCam	cam = NULL;
-	  tao_status st = TAO_OK;
-		// pointer to the final data which will be stored in the buffer
-		unsigned char	*final_image_array = (unsigned char *) malloc(HEIGHT * WIDTH *
-																											sizeof(unsigned char));
 
-		double exposuretime = 100.0;
-		st = initialize(&cam, exposuretime , 10);
+	// pointer to the final data which will be stored in the buffer
+	unsigned char	*final_image_array = (unsigned char *) malloc(HEIGHT * WIDTH *
+																										sizeof(unsigned char));
 
-	  double detector_temp = 0.0;
-	 	st =  detector_temperature(cam, &detector_temp);
-		printf("Temperature = %ld \n", (long)detector_temp );
-//
 	  // open shutter
+		tao_status st = TAO_OK;
 	  enum ShutterMode mode = OPEN;
 	  st = set_shuttermode(cam, mode);
 	  if (st != TAO_OK) {
 	    fatal_error();
 	  }
 		while (1){
-		 /* experiment
-			uint32_t *imgg;
-			ncCamAllocUInt32Image(cam, &imgg);
-			size_t p = malloc_usable_size(imgg);
-			printf("UInt32 image size = %ld\n", p );
 
-			int x0,x1,y0,y1 = 0;
-			ncCamGetRoi(cam, &x0, &x1, &y0, &y1);
-			printf("width = %d, height = %d\n",(x1-x0+1), (y1-y0+1) );
-
-
-			*/
 
 			st = acquisition(cam, final_image_array);
 			if (st != TAO_OK) {
@@ -221,9 +188,7 @@ void* createImage(void* arg){
 		  // pthread_cond_signal(&(buff.waitdata));
 		}
 
-		// /* print raw data
-		printData1(final_image_array);
-		// */
+
 		// --- Finalizer --- //
 		printf("Finishing...\n");
 		// close shutter
@@ -241,8 +206,15 @@ void* createImage(void* arg){
 }
 
 
+// Callbacks
+gboolean redraw(gpointer user_data){
+	sleep(0.001);
+  gtk_widget_queue_draw((GtkWidget *) user_data);
+  return TRUE;
+}
+
 // GTK callback functions
-gboolean display(gpointer arg){
+gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
   if (hasRun == 0){
     pthread_t imageThread;
     // spawn image generating thread
@@ -253,30 +225,68 @@ gboolean display(gpointer arg){
 
   }
 
- GtkImage* img = (GtkImage*) arg;
-  static cairo_surface_t *surface;
+	cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_A8, WIDTH, HEIGHT);
+	unsigned char* data_ptr = cairo_image_surface_get_data(surface);
+
   // pthread_cond_wait(&(buff.waitdata), &(buff.mutexBuffer));
   pthread_mutex_lock(&(buff.mutexBuffer));
 
-  // create surface
-  surface = cairo_image_surface_create_for_data (
-    buff.data,                    // unsigned char
-    CAIRO_FORMAT_A8,             // cairo_format_t
-    HEIGHT,
-    WIDTH,
-    buff.stride);
+  // write data to surface
+	cairo_surface_flush(surface);
+  memcpy(data_ptr, buff.data, buff.stride*HEIGHT*sizeof(unsigned char));
+  cairo_surface_mark_dirty(surface);;
 
   pthread_mutex_unlock(&(buff.mutexBuffer));
   // pthread_cond_signal(&(buff.waitdata));
 
-  // update image
-  gtk_image_set_from_surface(img,surface);
 
-  return TRUE;
+  // scale the surface
+  static int offsetx_rotate = (W_WIDTH)/2 ;
+  static int offsety_rotate = (W_HEIGHT)/2 ;
+
+  if (isRotate == TRUE) {
+    cairo_translate (cr, offsetx_rotate,offsety_rotate);
+    double radian = degree/180.0 * M_PI;
+
+    cairo_rotate(cr, radian);
+    cairo_translate (cr, -SCALE_FACTOR*WIDTH/2,-SCALE_FACTOR*HEIGHT/2);
+
+
+  }
+  cairo_scale (cr, SCALE_FACTOR, SCALE_FACTOR);
+
+  cairo_set_source_surface (cr, surface, 0,0);
+  cairo_paint (cr);
+  cairo_surface_destroy (surface);
+
+  return FALSE;
+
 }
 
 
 int main(int argc, char **argv) {
+	if (argc > 1) {
+	    if (strcmp(argv[1], "-r") == 0) {
+	        isRotate = TRUE;
+	        degree = atoi(argv[2]);
+	        if( degree%90 != 0){
+	          printf("Degree must be 90-degree interger\n");
+	          return 0;
+	        }
+	        else
+	        printf("Image is rotated %d CW\n", degree);
+	    }
+
+	    else{
+	        printf("Wrong flag inputs, -r [angel] to rotate the image\n");
+	        return 0;
+	    }
+
+	}
+
+	double exposuretime = 100.0;
+ 	initialize(&cam, exposuretime , 10);
+
 
 	gtk_init (&argc, &argv);
   // initialize global struct
@@ -285,17 +295,8 @@ int main(int argc, char **argv) {
   buff.data = (unsigned char*) calloc(buff.stride*HEIGHT, sizeof(unsigned char));
   pthread_cond_init(&(buff. waitdata), NULL);
   // GTK initialization
-  GtkWidget *img; // canvas object
+  GtkWidget *area = gtk_drawing_area_new();
   GtkWidget *window;
-
-  cairo_surface_t *surface = cairo_image_surface_create_for_data (
-    buff.data,                    // unsigned char
-    CAIRO_FORMAT_A8,             // cairo_format_t
-    HEIGHT,
-    WIDTH,
-    buff.stride);
-
-  img = gtk_image_new_from_surface(surface);
 
 	// GTK setup
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -308,13 +309,15 @@ int main(int argc, char **argv) {
 
 	// kill signal
 	g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+	g_signal_connect(G_OBJECT(area),"draw", G_CALLBACK(draw_callback), NULL);
 
 	// add container
-  gtk_container_add(GTK_CONTAINER(window), img);
+  gtk_container_add(GTK_CONTAINER(window), area);
   gtk_widget_show_all(window);
-  gdk_threads_add_idle(display,img);
-	gtk_main();
+	gdk_threads_add_idle(redraw, area);
+	gdk_threads_add_timeout_seconds(5, temperature_update,cam);
 
+	gtk_main();
 
 
   return EXIT_SUCCESS;

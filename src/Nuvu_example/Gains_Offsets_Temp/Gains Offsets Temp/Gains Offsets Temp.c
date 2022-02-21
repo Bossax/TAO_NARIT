@@ -21,7 +21,7 @@ int main() {
 
 	NcCam	myCam = NULL;
 	int		error = NC_SUCCESS;		//We initialize an error flag variable
-	
+
 	error = initialize(&myCam);
 
 	if (error == NC_SUCCESS) {
@@ -43,7 +43,7 @@ int demo(NcCam camera) {
 	NcImage	*myNcImage = NULL;
 
 	int	error = NC_SUCCESS;		//We initialize an error flag variable
-	
+
 	int	emCalGainAvailable = 0;
 	int	emRawGainAvailable = 0;
 
@@ -65,7 +65,7 @@ int demo(NcCam camera) {
 	if (error) {
 		return error;
 	}
-	
+
 	//We change the CCD target temperature
 	error = changeCcdTargetTemperature(camera);
 	if (error) {
@@ -131,7 +131,7 @@ int changeCcdTargetTemperature(NcCam camera) {
 	// If the calibrated em gain is available, set a temperature that will enable it
 	//Use of the calibrated gain, if available, is highly recommended
 	error = ncCamParamAvailable(camera, CALIBRATED_EM_GAIN, 0);
-	if (error == NC_SUCCESS) 
+	if (error == NC_SUCCESS)
 	{
 		error = ncCamGetCalibratedEmGainTempRange(camera, &ccdTargetTempMin, &ccdTargetTempMax);
 		if (error) {
@@ -236,7 +236,7 @@ int changeEmGain(NcCam camera, int* emCalGainAvailable, int* emRawGainAvailable)
 }
 
 
-int changeAnalogGain(NcCam camera) {
+int changeAnalogGain(NcCam camera, int gain) {
 
 	int	error = NC_SUCCESS;		//We initialize an error flag variable
 	int	analogGain, analogGainMin, analogGainMax;
@@ -295,8 +295,8 @@ int displayNewSettings(NcCam camera, int emCalGainAvailable, int emRawGainAvaila
 	}
 
 	//The previous ncCam function always polls the camera
-	//The following functions will also poll the camera 
-	//but may be used to verify the set values in software, 
+	//The following functions will also poll the camera
+	//but may be used to verify the set values in software,
 	//without polling the camera, by passing 0 as the second argument
 	error = ncCamGetTargetDetectorTemp(camera, 1, &ccdTargetTemp);
 	if (error) {

@@ -21,7 +21,7 @@ int main() {
 	if (error == NC_SUCCESS) {
 		error = demo(myCam);
 	}
-	
+
 	if (error != NC_SUCCESS) {
 		printf("The error %d happened during the example.  For more information about this error, the file nc_error.h can be used\n", error);
 	}
@@ -33,12 +33,12 @@ int main() {
 
 
 int demo(NcCam camera) {
-	
+
 	NcImage	*			myNcImage = 0;
 	enum ImageFormat	saveFormat = FITS;
 
 	int	error = NC_SUCCESS;	//We initialize an error flag variable
-	
+
 	//Acquiring reference image
 	//To see how to capture one single image, please refer to "utility.c" or the "simpleAcquisition.c" example
 	error = acquireOneImage(&camera, &myNcImage);
@@ -69,7 +69,7 @@ int demo(NcCam camera) {
 
 
 int binningDemo(NcCam camera) {
-	
+
 	NcImage* myNcImage;
 	int i;
 
@@ -82,7 +82,7 @@ int binningDemo(NcCam camera) {
 
 	binSupported = ncCamParamAvailable(camera, BINNING_Y, 2);
 
-	if (binSupported == NC_SUCCESS) 
+	if (binSupported == NC_SUCCESS)
 	{
 		printf("Binning in Y is supported\n");
 
@@ -148,7 +148,7 @@ int binningDemo(NcCam camera) {
 	if (error) {
 		return error;
 	}
-	
+
 	return error;
 }
 
@@ -170,8 +170,12 @@ int roiDemo(NcCam camera) {
 	//We will use ROIs a small fraction of the available image area
 	roiWidth = fullWidth / 8;
 	roiHeight = fullHeight / 8;
-
-	//There must always be at least one ROI. 
+	printf("Nuvu camer Region of Interese:\n"
+					"Full width = %d \n"
+				  "Full height = %d \n"
+					"ROI width = %d \n"
+					"ROI height = %d\n",fullWidth, fullHeight,roiWidth, roiHeight);
+	//There must always be at least one ROI.
 	//The first ROI is initially the entire available image area,
 	//with zero horizontal and vertical offset.
 	//We will set its size to a small fraction of that available;
