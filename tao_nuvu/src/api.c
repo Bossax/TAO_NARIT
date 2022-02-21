@@ -306,9 +306,15 @@ tao_status cam_open(int unit, int channel, int nbrBuffer, NcCam* cam)
   return TAO_OK;
 }
 // Start
-tao_status cam_set_ready(NcCam cam){
+tao_status cam_take_image(NcCam cam){
 	int err = NC_SUCCESS;
   err = ncCamPrepareAcquisition(cam,1);
+	if(err){
+    error_push(__func__, err);
+    return TAO_ERROR;
+  }
+
+	err = ncCamBeginAcquisition(cam);
 	if(err){
     error_push(__func__, err);
     return TAO_ERROR;
@@ -409,6 +415,11 @@ tao_status set_ROI(NcCam camera,int width, int height)
 		if (error) {
 			return error;
 		}
+
+
+		int w,h = 0;
+		ncCamGetMRoiSize(camera, 0, &w ,&h);
+		printf("ROI is set to width = %d, height = %d\n",w, h);
 		return TAO_OK;
 }
 // SaveImage

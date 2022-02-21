@@ -28,7 +28,7 @@ extern tao_status set_waiting_time(NcCam cam,double waitingTime);
 // Set time out
 extern tao_status set_timeout(NcCam cam,int timeTimeout);
 
-extern tao_status cam_set_ready(NcCam cam);
+extern tao_status cam_take_image(NcCam cam);
 /*-------------------------------------------------------------------------*/
 /* EM gain */
 
