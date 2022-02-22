@@ -1,8 +1,20 @@
+// acquisition_with_display.c
+// options
+// 1. -e [exposuretime in msec]
+// 2. -g [analog gain value]
+// 4. -go [analog gain offset]
+// 3. -gem [em gain value]
+// 5. -t [target temperature]
+// 6. -r [degree to rotate]
+// 7. -w [waiting time in msec]
+
+// -----------------------------------------
+
 #include "tao_nuvu.h"
 #include <gtk/gtk.h>
 #include <math.h>
 #include <malloc.h>
-// #include <unistd.h>
+#include <time.h>
 
 #define WIDTH 128
 #define HEIGHT 128
@@ -11,6 +23,8 @@
 #define W_HEIGHT 800
 #define SCALE_FACTOR 5
 #define BYTES_PER_PIXEL 1
+
+
 
 // data struct
 typedef struct imageBuffer{
@@ -27,6 +41,22 @@ int isRotate =  FALSE;
 int degree = 0;
 static int uint16size = (int) pow(2,16);
 static int hasRun = 0;
+
+// Man page
+void man(){
+	printf(
+"______ start_nuvu program ______ \n\
+syntax: -[option] [numeric value] \n\
+1. -e [exposuretime in msec] \n\
+2. -g [analog gain value] \n\
+4. -go [analog gain offset] \n\
+3. -gem [em gain value] (not done yet)\n\
+5. -t [target temperature] \n\
+6. -r [degree to rotate] \n\
+7. -w [waiting time in msec] \n\
+\n");
+
+}
 
 // ---Utility funcitonsd---- //
 // Fatal error
@@ -59,9 +89,36 @@ void scale_image(uint16_t *image, unsigned char *new_image)
 
 
 /*------ Camera operations ------- */
-tao_status initialize(NcCam* cam, double exposureTime, int gain){
+tao_status initialize(NcCam* cam, int argc, char* argv[]){
+   int i;
+	 int array_index = 0;
+	 char* param[argc];
+	 char* val[argc];
+	 if (argc > 1){
+		 // read input arguments
+		 for(i = 1; i < argc; i += 2)
+		 {
+			 param[array_index] = argv[i];
+		 		 val[array_index] = argv[i+1];
+
+		 }
+	 }
+
+	 //em gain array
+	 //emGainOp =
+
+	 // List of parameters
+	 	double readoutTime,
+				   waitingTime,
+					 exposureTime,
+					 temperature;
+		int 	 analogGain,
+					 analogOffset;
+
+
+	 // do generic initialization
   tao_status st = TAO_OK;			//We initialize an error flag variable
-	double readoutTime, waitingTime;
+
 
   printf("Open camera...\n" );
   st = cam_open(NC_AUTO_UNIT, NC_AUTO_CHANNEL, 4, cam);
@@ -78,30 +135,128 @@ tao_status initialize(NcCam* cam, double exposureTime, int gain){
   if( st != TAO_OK){
      fatal_error();
   }
+	printf("Estimated readout time = %lf msec\n", readoutTime);
 
-  st = set_exposure_time(*cam, exposureTime);
+	/* =====assign defaults values to parameters ======== */
+	exposureTime = readoutTime;
+	waitingTime = 0.1 * exposureTime;
+	temperature = -60.0;
+
+	int	error = NC_SUCCESS;
+
+		int	analogGainMin, analogGainMax;
+	error = ncCamGetAnalogGainRange(*cam, &analogGainMin, &analogGainMax);
+	if (error) {return error;}
+	analogGain = (analogGainMin + analogGainMax) / 2;
+
+	int	analogOffsetMin, analogOffsetMax;
+	error = ncCamGetAnalogOffsetRange(*cam, &analogOffsetMin, &analogOffsetMax);
+	if (error) {return error;}
+	analogOffset = (analogOffsetMin + analogOffsetMax) / 2;
+
+	//#======== iterate over the list of options ================#/
+	char* op;
+
+	for(int j =0; j < (argc-1)/2; j++ ){
+		 op = param[j];
+
+		 // exposure time
+		if(strcmp(op, "-e") == 0){
+			if (sscanf (val[j], "%lf", &exposureTime) != 1){
+				printf("exposure time should be a floating point number\n");
+			  fatal_error();
+			}
+		}
+		// analog gain
+		else if (strcmp(op, "-g") == 0){
+			if (sscanf (val[j], "%d", &analogGain) != 1){
+				printf("analog gain should be an integer\n");
+				fatal_error();
+			}
+		}
+		// em gain: TODO
+		else if (strcmp(op, "-gem") == 0){
+			// int emGain = (int) val[j];
+			// st = set_em_gain(*cam, emGainOp,emGainInput);
+			// if( st != TAO_OK){
+			// 	 fatal_error();
+			// }
+		}
+		// analog gain offset
+		else if (strcmp(op, "-go") == 0){
+			if (sscanf (val[j], "%d", &analogGain) != 1){
+				printf("analog offset should be an integer\n");
+				fatal_error();
+			}
+		}
+		else if (strcmp(op, "-t") == 0){
+			if (sscanf (val[j], "%lf", &temperature) != 1){
+				printf("temperature should be a floating point number\n");
+				fatal_error();
+			}
+
+		}
+		else if (strcmp(op, "-r") == 0){
+			isRotate = TRUE;
+			if (sscanf (val[j], "%d", &degree) != 1){
+				printf("degree should be an interger\n");
+				fatal_error();
+			}
+			if(degree%90 != 0){
+				printf("Degree must be 90-degree interger\n");
+				return 0;
+			}
+			else
+			printf("Image will be rotated %d CW\n", degree);
+		}
+		else if (strcmp(op, "-w") == 0){
+			if (sscanf (val[j], "%lf", &waitingTime) != 1){
+				printf("waiting time should be a floating point number\n");
+				fatal_error();
+			}
+		}
+
+
+	} // end option loop
+
+	// # =============== setter functions ============== #//
+	st = set_exposure_time(*cam, exposureTime);
+	if( st != TAO_OK){
+		 fatal_error();
+	}
+	printf("exposure time is set to %f msec\n", exposureTime);
+
+	st = set_waiting_time(*cam, waitingTime);
+	if( st != TAO_OK){
+		 fatal_error();
+	}
+	printf("waiting time is set to %f msec\n", waitingTime);
+
+	st = set_analog_gain(*cam, analogGain);
+	if( st != TAO_OK){
+		 fatal_error();
+	}
+	printf("analog gain is set to %d\n", analogGain);
+
+	st = set_analog_gain(*cam, analogOffset);
+	if( st != TAO_OK){
+		 fatal_error();
+	}
+	printf("analog offset is set to %d\n", analogOffset);
+
+	st = set_temperature(*cam, temperature);
+	if( st != TAO_OK){
+		 fatal_error();
+	}
+	printf("temperature is set to %f\n", temperature);
+
+	// set reasonable timeout
+  st = set_timeout(*cam ,  (int)(readoutTime + exposureTime) + 1000);
   if( st != TAO_OK){
      fatal_error();
-  }
-
-  waitingTime = 0.1 * exposureTime;
-  st = set_waiting_time(*cam, waitingTime);
-  if( st != TAO_OK){
-     fatal_error();
-  }
-
-  st = set_timeout(*cam ,  (int)(waitingTime + readoutTime + exposureTime) + 1000);
-  if( st != TAO_OK){
-     fatal_error();
-
-
-  }
-
+	}
 	// set image size
 	set_ROI(*cam, WIDTH, HEIGHT);
-
-	// set gain
-	change_analog_gain(*cam, 0);
 
   printf("initialization is complete.\n" );
 
@@ -156,7 +311,8 @@ gboolean temperature_update(gpointer user_data){
 // grab unsigned short 1-D array from NcImage
 // downsample to 8 bpp unsigned char 1-D array
 // put data in the buffer struct
-void* createImage(void* arg){
+void* createImage(void* arg)
+{
 
 
 	// pointer to the final data which will be stored in the buffer
@@ -265,28 +421,21 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
 
 
 int main(int argc, char **argv) {
+	// check --help
 	if (argc > 1) {
-	    if (strcmp(argv[1], "-r") == 0) {
-	        isRotate = TRUE;
-	        degree = atoi(argv[2]);
-	        if( degree%90 != 0){
-	          printf("Degree must be 90-degree interger\n");
-	          return 0;
-	        }
-	        else
-	        printf("Image is rotated %d CW\n", degree);
-	    }
-
-	    else{
-	        printf("Wrong flag inputs, -r [angel] to rotate the image\n");
-	        return 0;
-	    }
-
+		if(!strcmp("--help",argv[1]) && (argc == 2)){
+			man();
+			return 0;
+		}
+		else if (!strcmp("--help",argv[1]) || (argc == 2)){
+			printf("Wrong argument. use --help to see the manual\n");
+			return 0;
+		}
 	}
 
-	double exposuretime = 100.0;
- 	initialize(&cam, exposuretime , 10);
 
+
+ 	initialize(&cam, argc,argv);
 
 	gtk_init (&argc, &argv);
   // initialize global struct

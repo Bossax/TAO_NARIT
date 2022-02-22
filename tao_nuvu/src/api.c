@@ -86,7 +86,7 @@ tao_status set_timeout(NcCam cam,
 /*
 *   function pointer to opeartion on the emMax and emMin
 */
-tao_status change_em_gain(  NcCam camera,
+tao_status set_em_gain(  NcCam camera,
                           int (*emGainOp)(int* num),
                           int emGainInput)
 {
@@ -183,11 +183,11 @@ tao_status change_em_gain(  NcCam camera,
 
 }
 
-tao_status change_analog_gain(NcCam camera, int gain)
+tao_status set_analog_gain(NcCam camera, int analogGain)
 {
 
 	int	error = NC_SUCCESS;		//We initialize an error flag variable
-	int	analogGain, analogGainMin, analogGainMax;
+	int analogGainMin, analogGainMax;
 
 	error = ncCamGetAnalogGainRange(camera, &analogGainMin, &analogGainMax);
 	if (error) {
@@ -195,9 +195,12 @@ tao_status change_analog_gain(NcCam camera, int gain)
 		error_push("ncCamGetAnalogGainRange", error);
 		return TAO_ERROR;
 	}
+	if (analogGain < analogGainMin)
+		analogGain = analogGainMin;
+	if (analogGain > analogGainMax)
+		analogGain = analogGainMax;
 
 	//For the purpose of this example we will use the median value
-	analogGain = (analogGainMin + analogGainMax) / 2;
 	printf("Analog gain = %d\n", analogGain);
 
 	//Sets the analog gain on the camera
@@ -211,20 +214,23 @@ tao_status change_analog_gain(NcCam camera, int gain)
 	return error;
 }
 
-tao_status change_analog_offset(NcCam camera, int offset)
+tao_status set_analog_offset(NcCam camera, int analogOffset)
 {
 
 	int	error = NC_SUCCESS;		//We initialize an error flag variable
-	int	analogOffset, analogOffsetMin, analogOffsetMax;
+	int	analogOffsetMin, analogOffsetMax;
 
 	error = ncCamGetAnalogOffsetRange(camera, &analogOffsetMin, &analogOffsetMax);
 	if (error) {
 		return error;
 	}
 
-	//For the purpose of this example we will use the median value
-	analogOffset = (analogOffsetMin + analogOffsetMax) / 2;
+	if (analogOffset < analogOffsetMin)
+		analogOffset = analogOffsetMin;
+	if (analogOffset > analogOffsetMax)
+		analogOffset = analogOffsetMax;
 
+	printf("Analog gain offset = %d\n", analogOffset);
 	//Sets the analog offset on the camera
 	error = ncCamSetAnalogOffset(camera, analogOffset);
 	if (error) {
@@ -282,6 +288,47 @@ tao_status detector_temperature(NcCam cam, double* temp_ptr)
   }
   return TAO_OK;
 }
+
+tao_status set_temperature(NcCam camera, double	ccdTargetTemp) {
+
+	int		error = NC_SUCCESS;		//We initialize an error flag variable
+	double	 ccdTargetTempMin, ccdTargetTempMax;
+
+	// If the calibrated em gain is available, set a temperature that will enable it
+	//Use of the calibrated gain, if available, is highly recommended
+	error = ncCamParamAvailable(camera, CALIBRATED_EM_GAIN, 0);
+	if (error == NC_SUCCESS)
+	{
+		error = ncCamGetCalibratedEmGainTempRange(camera, &ccdTargetTempMin, &ccdTargetTempMax);
+		if (error) {
+			return error;
+		}
+	}
+	else
+	{
+		//Inquire range of temperatures available
+		error = ncCamGetTargetDetectorTempRange(camera, &ccdTargetTempMin, &ccdTargetTempMax);
+		if (error) {
+			return error;
+		}
+	}
+
+	if (ccdTargetTemp < ccdTargetTempMin)
+		ccdTargetTemp = ccdTargetTempMin;
+	if (ccdTargetTemp > ccdTargetTempMax)
+		ccdTargetTemp = ccdTargetTempMax;
+
+	//For the purpose of this example we will use the median value
+	printf("Target Temperature = %f\n", ccdTargetTemp);
+	//Sets the ccd target temperature on the camera
+	error = ncCamSetTargetDetectorTemp(camera, ccdTargetTemp);
+	if (error) {
+		return error;
+	}
+
+	return error;
+}
+
 /*---------------------------------------------------------------------------*/
 /* Status*/
 

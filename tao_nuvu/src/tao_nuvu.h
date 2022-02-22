@@ -41,9 +41,9 @@ extern tao_status change_em_gain(NcCam camera,
                           int emGainInput);
 
 
-extern tao_status change_analog_gain (NcCam camera, int gain);
+extern tao_status set_analog_gain (NcCam camera, int gain);
 
-extern tao_status change_analog_offset(NcCam camera, int offset);
+extern tao_status set_analog_offset(NcCam camera, int offset);
 /*---------------------------------------------------------------------------*/
 /* Processing */
 /* Linear Mode */
@@ -81,6 +81,7 @@ extern tao_status set_ROI(NcCam camera,int width, int height);
 /*---------------------------------------------------------------------------*/
 /* Temperature */
 extern tao_status detector_temperature(NcCam cam, double* temp_ptr);
+extern tao_status set_temperature(NcCam camera, double	ccdTargetTemp);
 /*---------------------------------------------------------------------------*/
 /* Status*/
 
