@@ -30,7 +30,7 @@ GTK_LIB =  `pkg-config --libs gtk+-3.0`
 # RULES
 .PHONY: all clean dist-clean
 
-all: libtao-nuvu.a $(TAO_NUVU_TESTS)
+all: libtao-nuvu.a $(TAO_NUVU_TESTS) start_nuvu
 
 
 clean:
