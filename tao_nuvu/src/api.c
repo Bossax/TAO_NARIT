@@ -15,9 +15,20 @@ void error_push(
 /*---------------------- Camera configuration -----------------------------*/
 /*-------------------------------------------------------------------------*/
 /* Times*/
+tao_status get_framerate(NcCam cam, double* fps)
+{
+	int err = NC_SUCCESS;
+	err =  ncCamGetFramerate(cam, fps);
+	if(err){
+		error_push(__func__, err);
+		return TAO_ERROR;
+	}
 
+	return TAO_OK;
+}
 // Get readout time
-tao_status get_readout_time(NcCam cam, double* readoutTime){
+tao_status get_readout_time(NcCam cam, double* readoutTime)
+{
     int err = NC_SUCCESS;
     err =  ncCamGetReadoutTime(cam, readoutTime);
     if(err){
@@ -31,7 +42,8 @@ tao_status get_readout_time(NcCam cam, double* readoutTime){
 // Get readout mode
 
 // Set Readout mode
-tao_status set_readout_mode(NcCam cam,int modeNum ){
+tao_status set_readout_mode(NcCam cam,int modeNum )
+{
   int err = NC_SUCCESS;
   err =  ncCamSetReadoutMode(cam, modeNum);
   if(err){
@@ -43,7 +55,8 @@ tao_status set_readout_mode(NcCam cam,int modeNum ){
 }
 
 // Set exposure time
-tao_status set_exposure_time(NcCam cam,double exposureTime){
+tao_status set_exposure_time(NcCam cam,double exposureTime)
+{
   int err = NC_SUCCESS;
   err =  ncCamSetExposureTime(cam, exposureTime);
   if(err){

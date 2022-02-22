@@ -39,6 +39,7 @@ NcCam	cam = NULL;
 imageBuffer buff;
 int isRotate =  FALSE;
 int degree = 0;
+double fps = 0;
 static int uint16size = (int) pow(2,16);
 static int hasRun = 0;
 
@@ -273,12 +274,14 @@ tao_status acquisition(NcCam cam, unsigned char	*image_handle){
   tao_status  st = TAO_OK;
 	NcImage* _image_handle; // 1-D array pointer 16 bpp
 
+
   // start acquisition
   st = cam_take_image(cam);
   if (st != TAO_OK) {
     fatal_error();
   }
-	// wait image
+	// wait image: blocking style Ok for separate thread
+	// FIXME: bad practice
 	int isacquiring = 1;
 	while (isacquiring){
 		ncCamIsAcquiring(cam, &isacquiring);
@@ -295,10 +298,9 @@ tao_status acquisition(NcCam cam, unsigned char	*image_handle){
 
 }
 
-
+// camera status update routines
 gboolean temperature_update(gpointer user_data){
 
-		NcCam cam = (NcCam) user_data;
 		double detector_temp = 0.0;
 		detector_temperature(cam, &detector_temp);
 		printf("Temperature = %ld \n", (long)detector_temp );
@@ -306,6 +308,14 @@ gboolean temperature_update(gpointer user_data){
 
 }
 
+gboolean fps_update(gpointer user_data)
+{
+	double fps = 0.0;
+	get_framerate(cam, &fps);
+	printf("Frame rate = %lf \n", fps );
+	return TRUE;
+
+}
 // --- worker functions --- //
 // createImage
 // grab unsigned short 1-D array from NcImage
@@ -419,6 +429,16 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
 
 }
 
+gboolean quit_callback(gpointer arg)
+{
+		// clean camera
+	enum ShutterMode mode = CLOSE;
+	set_shuttermode(cam,mode);
+	cam_abort(cam);
+	cam_close(cam);
+  gtk_main_quit();
+	return FALSE;
+}
 
 int main(int argc, char **argv) {
 	// check --help
@@ -457,14 +477,15 @@ int main(int argc, char **argv) {
 	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 
 	// kill signal
-	g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+	g_signal_connect(window, "destroy", G_CALLBACK(quit_callback), NULL);
 	g_signal_connect(G_OBJECT(area),"draw", G_CALLBACK(draw_callback), NULL);
 
 	// add container
   gtk_container_add(GTK_CONTAINER(window), area);
   gtk_widget_show_all(window);
-	gdk_threads_add_idle(redraw, area);
-	gdk_threads_add_timeout_seconds(5, temperature_update,cam);
+	gdk_threads_add_idle_full(G_PRIORITY_HIGH_IDLE, redraw, area, NULL);
+	gdk_threads_add_timeout_seconds_full(G_PRIORITY_LOW, 10, temperature_update,cam, NULL);
+	gdk_threads_add_timeout_seconds_full(G_PRIORITY_DEFAULT, 10, fps_update,cam, NULL);
 
 	gtk_main();
 
