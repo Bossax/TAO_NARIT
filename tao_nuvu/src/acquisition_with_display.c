@@ -263,6 +263,16 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
 
 }
 
+gboolean quit_callback(gpointer arg)
+{
+		// clean camera
+	enum ShutterMode mode = CLOSE;
+	set_shuttermode(cam,mode);
+	cam_abort(cam);
+	cam_close(cam);
+  gtk_main_quit();
+	return FALSE;
+}
 
 int main(int argc, char **argv) {
 	if (argc > 1) {
@@ -308,7 +318,7 @@ int main(int argc, char **argv) {
 	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);
 
 	// kill signal
-	g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
+	g_signal_connect(window, "destroy", G_CALLBACK(quit_callback), NULL);
 	g_signal_connect(G_OBJECT(area),"draw", G_CALLBACK(draw_callback), NULL);
 
 	// add container
