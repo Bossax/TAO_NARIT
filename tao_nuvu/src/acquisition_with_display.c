@@ -483,9 +483,9 @@ int main(int argc, char **argv) {
 	// add container
   gtk_container_add(GTK_CONTAINER(window), area);
   gtk_widget_show_all(window);
-	gdk_threads_add_idle_full(G_PRIORITY_HIGH_IDLE, redraw, area, NULL);
-	gdk_threads_add_timeout_seconds_full(G_PRIORITY_LOW, 10, temperature_update,cam, NULL);
-	gdk_threads_add_timeout_seconds_full(G_PRIORITY_DEFAULT, 10, fps_update,cam, NULL);
+	gdk_threads_add_idle(redraw, area);
+	gdk_threads_add_timeout_seconds( 10, temperature_update,cam);
+	gdk_threads_add_timeout_seconds(10, fps_update,cam);
 
 	gtk_main();
 
