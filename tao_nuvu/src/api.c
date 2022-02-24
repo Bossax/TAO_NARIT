@@ -214,7 +214,6 @@ tao_status set_analog_gain(NcCam camera, int analogGain)
 		analogGain = analogGainMax;
 
 	//For the purpose of this example we will use the median value
-	printf("Analog gain = %d\n", analogGain);
 
 	//Sets the analog gain on the camera
 	error = ncCamSetAnalogGain(camera, analogGain);

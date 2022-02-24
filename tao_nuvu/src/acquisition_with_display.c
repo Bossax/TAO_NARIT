@@ -68,6 +68,7 @@ static void fatal_error()
     }
     exit(EXIT_FAILURE);
 }
+
 // scale 16 bbp to 10 bbp
 // 16-bit to 10-bit rgb
 unsigned int rgb_mapping(uint16_t gray_val){
@@ -82,15 +83,20 @@ unsigned int rgb_mapping(uint16_t gray_val){
 
 }
 
-void rgb_image(uint16_t * img_data, unsigned char* new_image)
+void rgb_image(uint16_t * img_data, unsigned char* new_image, int* maxVal)
 {
 	uint16_t val;
   unsigned int pixelpack;
   memset(new_image , 0 , WIDTH*HEIGHT*BYTES_PER_PIXEL);
-
+	*maxVal = 0;
   for(int row = 0; row < HEIGHT; row++){
     for(int col = 0; col< WIDTH; col++){
 			val  = *(img_data+row*HEIGHT + col);
+
+			if ((int)val > *maxVal){
+				*maxVal = val;
+			}
+
       pixelpack = rgb_mapping(val);
       memcpy(new_image + (row*HEIGHT + col)*BYTES_PER_PIXEL, &pixelpack, 4) ;
 
@@ -176,7 +182,7 @@ tao_status initialize(NcCam* cam, int argc, char* argv[]){
 
 	int	error = NC_SUCCESS;
 
-		int	analogGainMin, analogGainMax;
+	int	analogGainMin, analogGainMax;
 	error = ncCamGetAnalogGainRange(*cam, &analogGainMin, &analogGainMax);
 	if (error) {return error;}
 	analogGain = (analogGainMin + analogGainMax) / 2;
@@ -187,6 +193,7 @@ tao_status initialize(NcCam* cam, int argc, char* argv[]){
 	analogOffset = (analogOffsetMin + analogOffsetMax) / 2;
 
 	//#======== iterate over the list of options ================#/
+
 	char* op;
 
 	for(int j =0; j < (argc-1)/2; j++ ){
@@ -323,8 +330,10 @@ tao_status acquisition(NcCam cam, unsigned char	*image_handle){
 	if(st != TAO_OK){
 		fatal_error();
 	}
-	rgb_image((uint16_t*) _image_handle, image_handle);
-
+	int maxVal = 0;
+	rgb_image((uint16_t*) _image_handle, image_handle, &maxVal);
+	// double uint16size = pow(2,16);
+	// printf("Max percent = %f\n", maxVal/uint16size*100);
   return st;
 
 }
@@ -349,55 +358,48 @@ gboolean fps_update(gpointer user_data)
 }
 // --- worker functions --- //
 // createImage
-// grab unsigned short 1-D array from NcImage
-// downsample to 8 bpp unsigned char 1-D array
-// put data in the buffer struct
 void* createImage(void* arg)
 {
-
-
 	// pointer to the final data which will be stored in the buffer
 	unsigned char	*final_image_array = (unsigned char *) malloc(buff.stride* HEIGHT);
 
-	  // open shutter
-		tao_status st = TAO_OK;
-	  enum ShutterMode mode = OPEN;
-	  st = set_shuttermode(cam, mode);
-	  if (st != TAO_OK) {
+  // open shutter
+	tao_status st = TAO_OK;
+  enum ShutterMode mode = OPEN;
+  st = set_shuttermode(cam, mode);
+  if (st != TAO_OK) {
+    fatal_error();
+  }
+	while (1){
+
+		st = acquisition(cam, final_image_array);
+		if (st != TAO_OK) {
 	    fatal_error();
 	  }
-		while (1){
+		printf("Image is acquired.. \n");
+
+		pthread_mutex_lock(&(buff.mutexBuffer));
+		memcpy((void *) buff.data, (void*) final_image_array,buff.stride * HEIGHT	);
+		pthread_mutex_unlock(&(buff.mutexBuffer));
+
+	  // pthread_cond_signal(&(buff.waitdata));
+	}
 
 
-			st = acquisition(cam, final_image_array);
-			if (st != TAO_OK) {
-		    fatal_error();
-		  }
-			// printf("Image is acquired.. \n");
+	// --- Finalizer --- //
+	printf("Finishing...\n");
+	// close shutter
+  st = set_shuttermode(cam, CLOSE);
+  if (st != TAO_OK) {
+    fatal_error();
+  }
 
-			pthread_mutex_lock(&(buff.mutexBuffer));
-			memcpy((void *) buff.data, (void*) final_image_array,buff.stride * HEIGHT	);
-			pthread_mutex_unlock(&(buff.mutexBuffer));
+	st = cam_close(cam);
+  if(st != TAO_OK){
+    fatal_error();
+  }
 
-
-		  // pthread_cond_signal(&(buff.waitdata));
-		}
-
-
-		// --- Finalizer --- //
-		printf("Finishing...\n");
-		// close shutter
-	  st = set_shuttermode(cam, CLOSE);
-	  if (st != TAO_OK) {
-	    fatal_error();
-	  }
-
-		st = cam_close(cam);
-	  if(st != TAO_OK){
-	    fatal_error();
-	  }
-
-		return NULL;
+	return NULL;
 }
 
 
@@ -410,7 +412,7 @@ gboolean redraw(gpointer user_data){
 
 // GTK callback functions
 gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
-  if (hasRun == 0){
+	if (hasRun == 0){
     pthread_t imageThread;
     // spawn image generating thread
     if(pthread_create(&imageThread, NULL, createImage, NULL) != 0){
@@ -478,6 +480,9 @@ int main(int argc, char* argv[]) {
 			printf("Wrong argument. use --help to see the manual\n");
 			return 0;
 		}
+		else {
+			*argv = NULL;
+		}
 	}
 
  	initialize(&cam, argc, argv);
@@ -485,6 +490,7 @@ int main(int argc, char* argv[]) {
 	gtk_init (&argc, &argv);
   // initialize global struct
   buff.stride = cairo_format_stride_for_width (CAIRO_FORMAT_RGB30, WIDTH);
+	printf("stride =%d\n", buff.stride);
   buff.data = (unsigned char*) calloc(buff.stride*HEIGHT, sizeof(unsigned char));
   pthread_cond_init(&(buff. waitdata), NULL);
   // GTK initialization
@@ -508,10 +514,12 @@ int main(int argc, char* argv[]) {
   gtk_container_add(GTK_CONTAINER(window), area);
   gtk_widget_show_all(window);
 	gdk_threads_add_idle(redraw, area);
-	gdk_threads_add_timeout_seconds( 10, temperature_update,cam);
-	gdk_threads_add_timeout_seconds(10, fps_update,cam);
+	gdk_threads_add_timeout_seconds(5, temperature_update,cam);
+
 	gtk_main();
 
+
+  return EXIT_SUCCESS;
 
   return EXIT_SUCCESS;
 }
