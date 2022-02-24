@@ -125,13 +125,14 @@ tao_status initialize(NcCam* cam, int argc, char* argv[]){
 	 int array_index = 0;
 	 char* param[argc];
 	 char* val[argc];
+
 	 if (argc > 1){
 		 // read input arguments
 		 for(i = 1; i < argc; i += 2)
 		 {
 			 param[array_index] = argv[i];
-		 		 val[array_index] = argv[i+1];
-
+		 	 val[array_index] = argv[i+1];
+			 array_index += 1 ;
 		 }
 	 }
 
@@ -427,7 +428,7 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
 
   // write data to surface
 	cairo_surface_flush(surface);
-  memcpy(data_ptr, buff.data, buff.stride*HEIGHT*sizeof(unsigned char));
+  memcpy(data_ptr, buff.data, buff.stride*HEIGHT);
   cairo_surface_mark_dirty(surface);;
 
   pthread_mutex_unlock(&(buff.mutexBuffer));
@@ -438,15 +439,13 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
   static int offsetx_rotate = (W_WIDTH)/2 ;
   static int offsety_rotate = (W_HEIGHT)/2 ;
 
-  if (isRotate == TRUE) {
-    cairo_translate (cr, offsetx_rotate,offsety_rotate);
-    double radian = degree/180.0 * M_PI;
+  cairo_translate (cr, offsetx_rotate,offsety_rotate);
+  double radian = degree/180.0 * M_PI;
 
+	if (isRotate == TRUE) {
     cairo_rotate(cr, radian);
-    cairo_translate (cr, -SCALE_FACTOR*WIDTH/2,-SCALE_FACTOR*HEIGHT/2);
-
-
   }
+	cairo_translate (cr, -SCALE_FACTOR*WIDTH/2,-SCALE_FACTOR*HEIGHT/2);
   cairo_scale (cr, SCALE_FACTOR, SCALE_FACTOR);
 
   cairo_set_source_surface (cr, surface, 0,0);
@@ -468,7 +467,7 @@ gboolean quit_callback(gpointer arg)
 	return FALSE;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char* argv[]) {
 	// check --help
 	if (argc > 1) {
 		if(!strcmp("--help",argv[1]) && (argc == 2)){
@@ -481,14 +480,11 @@ int main(int argc, char **argv) {
 		}
 	}
 
-
-
- 	initialize(&cam, argc,argv);
+ 	initialize(&cam, argc, argv);
 
 	gtk_init (&argc, &argv);
   // initialize global struct
   buff.stride = cairo_format_stride_for_width (CAIRO_FORMAT_RGB30, WIDTH);
-	printf("stride =%d\n", buff.stride);
   buff.data = (unsigned char*) calloc(buff.stride*HEIGHT, sizeof(unsigned char));
   pthread_cond_init(&(buff. waitdata), NULL);
   // GTK initialization
@@ -514,7 +510,6 @@ int main(int argc, char **argv) {
 	gdk_threads_add_idle(redraw, area);
 	gdk_threads_add_timeout_seconds( 10, temperature_update,cam);
 	gdk_threads_add_timeout_seconds(10, fps_update,cam);
-
 	gtk_main();
 
 

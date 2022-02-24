@@ -48,4 +48,5 @@ tao_nuvu_test-01: tao_nuvu_test-01.c tao_nuvu.h libtao-nuvu.a
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ -L. -ltao-nuvu $(TAO_LIBS) $(NC_LIBS)
 
 start_nuvu: acquisition_with_display.c tao_nuvu.h libtao-nuvu.a
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(GTK_FLAG) $< -o $@ -L. -ltao-nuvu $(TAO_LIBS) $(NC_LIBS) $(GTK_LIB) -lm
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(GTK_FLAG) $< -o $@ -L. -ltao-nuvu $(TAO_LIBS) $(NC_LIBS) $(GTK_LIB) -lm -ggdb
+	
