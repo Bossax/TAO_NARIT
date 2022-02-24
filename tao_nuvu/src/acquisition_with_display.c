@@ -18,11 +18,10 @@
 
 #define WIDTH 128
 #define HEIGHT 128
-#define BYTE_PER_PIXEL 1
+#define BYTES_PER_PIXEL 4
 #define W_WIDTH 800
 #define W_HEIGHT 800
 #define SCALE_FACTOR 5
-#define BYTES_PER_PIXEL 1
 
 
 
@@ -69,7 +68,37 @@ static void fatal_error()
     }
     exit(EXIT_FAILURE);
 }
+// scale 16 bbp to 10 bbp
+// 16-bit to 10-bit rgb
+unsigned int rgb_mapping(uint16_t gray_val){
+  double uint10size = pow(2,10);
+  double uint16size = pow(2,16);
+  unsigned int gray10bit = (unsigned int) floor(gray_val/uint16size*uint10size);
+  unsigned int blue = gray10bit;
+  unsigned int green = gray10bit << 10;
+  unsigned int red = gray10bit << 20;
+  unsigned int ref =  red | green | blue;
+  return ref;
 
+}
+
+void rgb_image(uint16_t * img_data, unsigned char* new_image)
+{
+	uint16_t val;
+  unsigned int pixelpack;
+  memset(new_image , 0 , WIDTH*HEIGHT*BYTES_PER_PIXEL);
+
+  for(int row = 0; row < HEIGHT; row++){
+    for(int col = 0; col< WIDTH; col++){
+			val  = *(img_data+row*HEIGHT + col);
+      pixelpack = rgb_mapping(val);
+      memcpy(new_image + (row*HEIGHT + col)*BYTES_PER_PIXEL, &pixelpack, 4) ;
+
+    }
+
+  }
+
+}
 // scale 16bbp to 8bbp
 unsigned char scale_operation(uint16_t val)
 {
@@ -83,9 +112,10 @@ void scale_image(uint16_t *image, unsigned char *new_image)
 	unsigned char	val = 0;
 	for(int i = 0; i < HEIGHT*WIDTH; i++){
 				val = scale_operation(*(image+i));
-				*(new_image+i) = val;
+				*(new_image+i) = 255-val;
 	}
 }
+
 //
 
 
@@ -292,7 +322,7 @@ tao_status acquisition(NcCam cam, unsigned char	*image_handle){
 	if(st != TAO_OK){
 		fatal_error();
 	}
-	scale_image((uint16_t*) _image_handle, image_handle);
+	rgb_image((uint16_t*) _image_handle, image_handle);
 
   return st;
 
@@ -326,8 +356,7 @@ void* createImage(void* arg)
 
 
 	// pointer to the final data which will be stored in the buffer
-	unsigned char	*final_image_array = (unsigned char *) malloc(HEIGHT * WIDTH *
-																										sizeof(unsigned char));
+	unsigned char	*final_image_array = (unsigned char *) malloc(buff.stride* HEIGHT);
 
 	  // open shutter
 		tao_status st = TAO_OK;
@@ -346,8 +375,7 @@ void* createImage(void* arg)
 			// printf("Image is acquired.. \n");
 
 			pthread_mutex_lock(&(buff.mutexBuffer));
-			memcpy((void *) buff.data, (void*) final_image_array,HEIGHT * WIDTH *
-																												sizeof(unsigned char));
+			memcpy((void *) buff.data, (void*) final_image_array,buff.stride * HEIGHT	);
 			pthread_mutex_unlock(&(buff.mutexBuffer));
 
 
@@ -391,7 +419,7 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
 
   }
 
-	cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_A8, WIDTH, HEIGHT);
+	cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_RGB30, WIDTH, HEIGHT);
 	unsigned char* data_ptr = cairo_image_surface_get_data(surface);
 
   // pthread_cond_wait(&(buff.waitdata), &(buff.mutexBuffer));
@@ -459,7 +487,7 @@ int main(int argc, char **argv) {
 
 	gtk_init (&argc, &argv);
   // initialize global struct
-  buff.stride = cairo_format_stride_for_width (CAIRO_FORMAT_A8, WIDTH);
+  buff.stride = cairo_format_stride_for_width (CAIRO_FORMAT_RGB30, WIDTH);
 	printf("stride =%d\n", buff.stride);
   buff.data = (unsigned char*) calloc(buff.stride*HEIGHT, sizeof(unsigned char));
   pthread_cond_init(&(buff. waitdata), NULL);
