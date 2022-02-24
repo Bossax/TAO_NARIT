@@ -6,11 +6,10 @@
 
 #define WIDTH 128
 #define HEIGHT 128
-#define BYTE_PER_PIXEL 4
+#define BYTES_PER_PIXEL 4
 #define W_WIDTH 800
 #define W_HEIGHT 800
 #define SCALE_FACTOR 5
-#define BYTES_PER_PIXEL 1
 
 // data struct
 typedef struct imageBuffer{
@@ -210,8 +209,7 @@ void* createImage(void* arg){
 			// printf("Image is acquired.. \n");
 
 			pthread_mutex_lock(&(buff.mutexBuffer));
-			memcpy((void *) buff.data, (void*) final_image_array,HEIGHT * WIDTH *
-																												sizeof(unsigned char));
+			memcpy((void *) buff.data, (void*) final_image_array,buff.stride * HEIGHT	);
 			pthread_mutex_unlock(&(buff.mutexBuffer));
 
 
