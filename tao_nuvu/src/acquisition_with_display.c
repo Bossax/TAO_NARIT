@@ -27,7 +27,7 @@
 
 // data struct
 typedef struct imageBuffer{
-  unsigned char* data;
+  unsigned char* data;				// this contained scaled image data
   int stride;
   pthread_mutex_t mutexBuffer;
   pthread_cond_t waitdata;
@@ -39,7 +39,6 @@ imageBuffer buff;
 int isRotate =  FALSE;
 int degree = 0;
 double fps = 0;
-static int uint16size = (int) pow(2,16);
 static int hasRun = 0;
 
 // Man page
@@ -67,6 +66,26 @@ static void fatal_error()
         tao_report_errors();
     }
     exit(EXIT_FAILURE);
+}
+
+// nearest pixel image scaling
+void makeBigger(unsigned char* img, unsigned char* simage, int scale)
+{
+
+    uint32_t row = 0, col = 0;
+    int swidth = WIDTH * scale;
+    int sheight = HEIGHT * scale;
+
+    for (row = 0; row < sheight; row++) {
+        for (col = 0;col < swidth; col++) {
+            int round_row = (int) floor(row/scale);
+            int round_col = (int) floor(col/scale);
+
+            memcpy(simage + (row*sheight + col)*BYTES_PER_PIXEL,
+                    img + (round_row*HEIGHT + round_col)*BYTES_PER_PIXEL, BYTES_PER_PIXEL);
+        }
+    }
+
 }
 
 // scale 16 bbp to 10 bbp
@@ -105,24 +124,6 @@ void rgb_image(uint16_t * img_data, unsigned char* new_image, int* maxVal)
   }
 
 }
-// scale 16bbp to 8bbp
-unsigned char scale_operation(uint16_t val)
-{
-		unsigned char h = (unsigned char) floor(((double) val)/uint16size * 255.0);
-		return h;
-
-}
-
-void scale_image(uint16_t *image, unsigned char *new_image)
-{
-	unsigned char	val = 0;
-	for(int i = 0; i < HEIGHT*WIDTH; i++){
-				val = scale_operation(*(image+i));
-				*(new_image+i) = 255-val;
-	}
-}
-
-//
 
 
 /*------ Camera operations ------- */
@@ -312,7 +313,6 @@ tao_status acquisition(NcCam cam, unsigned char	*image_handle){
   tao_status  st = TAO_OK;
 	NcImage* _image_handle; // 1-D array pointer 16 bpp
 
-
   // start acquisition
   st = cam_take_image(cam);
   if (st != TAO_OK) {
@@ -332,8 +332,7 @@ tao_status acquisition(NcCam cam, unsigned char	*image_handle){
 	}
 	int maxVal = 0;
 	rgb_image((uint16_t*) _image_handle, image_handle, &maxVal);
-	// double uint16size = pow(2,16);
-	// printf("Max percent = %f\n", maxVal/uint16size*100);
+
   return st;
 
 }
@@ -361,8 +360,8 @@ gboolean fps_update(gpointer user_data)
 void* createImage(void* arg)
 {
 	// pointer to the final data which will be stored in the buffer
-	unsigned char	*final_image_array = (unsigned char *) malloc(buff.stride* HEIGHT);
-
+	unsigned char* img_data = (unsigned char *) malloc(buff.stride* HEIGHT);
+	unsigned char* final_image_array = (unsigned char*) malloc(buff.stride*HEIGHT*SCALE_FACTOR*SCALE_FACTOR);
   // open shutter
 	tao_status st = TAO_OK;
   enum ShutterMode mode = OPEN;
@@ -372,19 +371,19 @@ void* createImage(void* arg)
   }
 	while (1){
 
-		st = acquisition(cam, final_image_array);
+		st = acquisition(cam, img_data);
 		if (st != TAO_OK) {
 	    fatal_error();
 	  }
-		printf("Image is acquired.. \n");
+		// scale image
+		makeBigger(img_data, final_image_array, SCALE_FACTOR);
 
 		pthread_mutex_lock(&(buff.mutexBuffer));
-		memcpy((void *) buff.data, (void*) final_image_array,buff.stride * HEIGHT	);
+		memcpy((void *) buff.data, (void*) final_image_array,buff.stride * HEIGHT *SCALE_FACTOR *SCALE_FACTOR	);
 		pthread_mutex_unlock(&(buff.mutexBuffer));
 
 	  // pthread_cond_signal(&(buff.waitdata));
 	}
-
 
 	// --- Finalizer --- //
 	printf("Finishing...\n");
@@ -422,7 +421,9 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
 
   }
 
-	cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_RGB30, WIDTH, HEIGHT);
+	cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_RGB30,
+																												SCALE_FACTOR*WIDTH,
+																												SCALE_FACTOR*HEIGHT);
 	unsigned char* data_ptr = cairo_image_surface_get_data(surface);
 
   // pthread_cond_wait(&(buff.waitdata), &(buff.mutexBuffer));
@@ -430,7 +431,7 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
 
   // write data to surface
 	cairo_surface_flush(surface);
-  memcpy(data_ptr, buff.data, buff.stride*HEIGHT);
+  memcpy(data_ptr, buff.data, buff.stride*HEIGHT*SCALE_FACTOR*SCALE_FACTOR);
   cairo_surface_mark_dirty(surface);;
 
   pthread_mutex_unlock(&(buff.mutexBuffer));
@@ -448,7 +449,6 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
     cairo_rotate(cr, radian);
   }
 	cairo_translate (cr, -SCALE_FACTOR*WIDTH/2,-SCALE_FACTOR*HEIGHT/2);
-  cairo_scale (cr, SCALE_FACTOR, SCALE_FACTOR);
 
   cairo_set_source_surface (cr, surface, 0,0);
   cairo_paint (cr);
@@ -491,7 +491,8 @@ int main(int argc, char* argv[]) {
   // initialize global struct
   buff.stride = cairo_format_stride_for_width (CAIRO_FORMAT_RGB30, WIDTH);
 	printf("stride =%d\n", buff.stride);
-  buff.data = (unsigned char*) calloc(buff.stride*HEIGHT, sizeof(unsigned char));
+  buff.data = (unsigned char*) calloc(buff.stride*HEIGHT*SCALE_FACTOR*SCALE_FACTOR,
+		 																	sizeof(unsigned char));
   pthread_cond_init(&(buff. waitdata), NULL);
   // GTK initialization
   GtkWidget *area = gtk_drawing_area_new();
