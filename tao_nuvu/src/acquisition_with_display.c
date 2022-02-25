@@ -39,6 +39,7 @@ imageBuffer buff;
 int isRotate =  FALSE;
 int degree = 0;
 double fps = 0;
+int satVal = 0;
 static int hasRun = 0;
 
 // Man page
@@ -330,8 +331,8 @@ tao_status acquisition(NcCam cam, unsigned char	*image_handle){
 	if(st != TAO_OK){
 		fatal_error();
 	}
-	int maxVal = 0;
-	rgb_image((uint16_t*) _image_handle, image_handle, &maxVal);
+
+	rgb_image((uint16_t*) _image_handle, image_handle, &satVal);
 
   return st;
 
@@ -347,6 +348,14 @@ gboolean temperature_update(gpointer user_data){
 
 }
 
+// saturation check
+gboolean saturation_check(gpointer user_data){
+	int maxVal = (int) pow(2,16);
+	satVal == maxVal ? printf("Image is saturated!\n"):0;
+	return TRUE;
+
+}
+// frame rate print update (not working)
 gboolean fps_update(gpointer user_data)
 {
 	double fps = 0.0;
@@ -356,7 +365,8 @@ gboolean fps_update(gpointer user_data)
 
 }
 // --- worker functions --- //
-// createImage
+// createImage camera
+// acquisition routine
 void* createImage(void* arg)
 {
 	// pointer to the final data which will be stored in the buffer
@@ -379,7 +389,8 @@ void* createImage(void* arg)
 		makeBigger(img_data, final_image_array, SCALE_FACTOR);
 
 		pthread_mutex_lock(&(buff.mutexBuffer));
-		memcpy((void *) buff.data, (void*) final_image_array,buff.stride * HEIGHT *SCALE_FACTOR *SCALE_FACTOR	);
+		memcpy((void *) buff.data, (void*) final_image_array,
+					buff.stride * HEIGHT *SCALE_FACTOR *SCALE_FACTOR);
 		pthread_mutex_unlock(&(buff.mutexBuffer));
 
 	  // pthread_cond_signal(&(buff.waitdata));
@@ -402,15 +413,17 @@ void* createImage(void* arg)
 }
 
 
-// Callbacks
+// ------- Callbacks --------
+// redraw callback (idel)
 gboolean redraw(gpointer user_data){
 	sleep(0.001);
   gtk_widget_queue_draw((GtkWidget *) user_data);
   return TRUE;
 }
 
-// GTK callback functions
+// draw callback
 gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
+	// start camera image acquisition in a seperate thread
 	if (hasRun == 0){
     pthread_t imageThread;
     // spawn image generating thread
@@ -420,25 +433,26 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
 		 hasRun = 1;
 
   }
-
+	 //create cairo surface
 	cairo_surface_t *surface = cairo_image_surface_create(CAIRO_FORMAT_RGB30,
 																												SCALE_FACTOR*WIDTH,
 																												SCALE_FACTOR*HEIGHT);
 	unsigned char* data_ptr = cairo_image_surface_get_data(surface);
 
   // pthread_cond_wait(&(buff.waitdata), &(buff.mutexBuffer));
+	// write data to surface
   pthread_mutex_lock(&(buff.mutexBuffer));
-
-  // write data to surface
 	cairo_surface_flush(surface);
-  memcpy(data_ptr, buff.data, buff.stride*HEIGHT*SCALE_FACTOR*SCALE_FACTOR);
+
+  memcpy(data_ptr, buff.data,
+				buff.stride*HEIGHT*SCALE_FACTOR*SCALE_FACTOR);
+
   cairo_surface_mark_dirty(surface);;
 
   pthread_mutex_unlock(&(buff.mutexBuffer));
   // pthread_cond_signal(&(buff.waitdata));
 
-
-  // scale the surface
+	// rotate the image
   static int offsetx_rotate = (W_WIDTH)/2 ;
   static int offsety_rotate = (W_HEIGHT)/2 ;
 
@@ -458,6 +472,7 @@ gboolean draw_callback(GtkWidget*widget,cairo_t* cr, gpointer arg){
 
 }
 
+// quit callback
 gboolean quit_callback(gpointer arg)
 {
 		// clean camera
@@ -490,10 +505,10 @@ int main(int argc, char* argv[]) {
 	gtk_init (&argc, &argv);
   // initialize global struct
   buff.stride = cairo_format_stride_for_width (CAIRO_FORMAT_RGB30, WIDTH);
-	printf("stride =%d\n", buff.stride);
   buff.data = (unsigned char*) calloc(buff.stride*HEIGHT*SCALE_FACTOR*SCALE_FACTOR,
 		 																	sizeof(unsigned char));
-  pthread_cond_init(&(buff. waitdata), NULL);
+  // pthread_cond_init(&(buff. waitdata), NULL);
+
   // GTK initialization
   GtkWidget *area = gtk_drawing_area_new();
   GtkWidget *window;
@@ -514,8 +529,10 @@ int main(int argc, char* argv[]) {
 	// add container
   gtk_container_add(GTK_CONTAINER(window), area);
   gtk_widget_show_all(window);
+	// add callbacks
 	gdk_threads_add_idle(redraw, area);
 	gdk_threads_add_timeout_seconds(5, temperature_update,cam);
+	gdk_threads_add_timeout_seconds(2, saturation_check,cam);
 
 	gtk_main();
 
