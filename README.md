@@ -50,3 +50,16 @@ in the corresponding directory.
 ```shell
 make tao_spinnaker_test-01
 ```
+or simply run `make` to compile verything
+```shell
+make
+```
+### Nuvu real-time image display window
+`start_nuvu` is the program that invokes image acquisition and display real-time image. To compile, in `~/tao_nuvu/src` directory
+```shell
+make start_nuvu
+```
+To see available options eg.  camera setting and displayed image rotation
+```shell
+./start_nuvu --help
+```

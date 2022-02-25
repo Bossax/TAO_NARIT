@@ -75,4 +75,5 @@ dkms.conf
 *.jpg
 *.fits*
 *.Z*
+*.jpeg
 *.pdf

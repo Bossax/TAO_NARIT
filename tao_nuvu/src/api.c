@@ -15,9 +15,20 @@ void error_push(
 /*---------------------- Camera configuration -----------------------------*/
 /*-------------------------------------------------------------------------*/
 /* Times*/
+tao_status get_framerate(NcCam cam, double* fps)
+{
+	int err = NC_SUCCESS;
+	err =  ncCamGetFramerate(cam, fps);
+	if(err){
+		error_push(__func__, err);
+		return TAO_ERROR;
+	}
 
+	return TAO_OK;
+}
 // Get readout time
-tao_status get_readout_time(NcCam cam, double* readoutTime){
+tao_status get_readout_time(NcCam cam, double* readoutTime)
+{
     int err = NC_SUCCESS;
     err =  ncCamGetReadoutTime(cam, readoutTime);
     if(err){
@@ -31,7 +42,8 @@ tao_status get_readout_time(NcCam cam, double* readoutTime){
 // Get readout mode
 
 // Set Readout mode
-tao_status set_readout_mode(NcCam cam,int modeNum ){
+tao_status set_readout_mode(NcCam cam,int modeNum )
+{
   int err = NC_SUCCESS;
   err =  ncCamSetReadoutMode(cam, modeNum);
   if(err){
@@ -43,7 +55,8 @@ tao_status set_readout_mode(NcCam cam,int modeNum ){
 }
 
 // Set exposure time
-tao_status set_exposure_time(NcCam cam,double exposureTime){
+tao_status set_exposure_time(NcCam cam,double exposureTime)
+{
   int err = NC_SUCCESS;
   err =  ncCamSetExposureTime(cam, exposureTime);
   if(err){
@@ -86,7 +99,7 @@ tao_status set_timeout(NcCam cam,
 /*
 *   function pointer to opeartion on the emMax and emMin
 */
-tao_status change_em_gain(  NcCam camera,
+tao_status set_em_gain(  NcCam camera,
                           int (*emGainOp)(int* num),
                           int emGainInput)
 {
@@ -183,11 +196,11 @@ tao_status change_em_gain(  NcCam camera,
 
 }
 
-tao_status change_analog_gain(NcCam camera, int gain)
+tao_status set_analog_gain(NcCam camera, int analogGain)
 {
 
 	int	error = NC_SUCCESS;		//We initialize an error flag variable
-	int	analogGain, analogGainMin, analogGainMax;
+	int analogGainMin, analogGainMax;
 
 	error = ncCamGetAnalogGainRange(camera, &analogGainMin, &analogGainMax);
 	if (error) {
@@ -195,10 +208,12 @@ tao_status change_analog_gain(NcCam camera, int gain)
 		error_push("ncCamGetAnalogGainRange", error);
 		return TAO_ERROR;
 	}
+	if (analogGain < analogGainMin)
+		analogGain = analogGainMin;
+	if (analogGain > analogGainMax)
+		analogGain = analogGainMax;
 
 	//For the purpose of this example we will use the median value
-	analogGain = (analogGainMin + analogGainMax) / 2;
-	printf("Analog gain = %d\n", analogGain);
 
 	//Sets the analog gain on the camera
 	error = ncCamSetAnalogGain(camera, analogGain);
@@ -211,20 +226,23 @@ tao_status change_analog_gain(NcCam camera, int gain)
 	return error;
 }
 
-tao_status change_analog_offset(NcCam camera, int offset)
+tao_status set_analog_offset(NcCam camera, int analogOffset)
 {
 
 	int	error = NC_SUCCESS;		//We initialize an error flag variable
-	int	analogOffset, analogOffsetMin, analogOffsetMax;
+	int	analogOffsetMin, analogOffsetMax;
 
 	error = ncCamGetAnalogOffsetRange(camera, &analogOffsetMin, &analogOffsetMax);
 	if (error) {
 		return error;
 	}
 
-	//For the purpose of this example we will use the median value
-	analogOffset = (analogOffsetMin + analogOffsetMax) / 2;
+	if (analogOffset < analogOffsetMin)
+		analogOffset = analogOffsetMin;
+	if (analogOffset > analogOffsetMax)
+		analogOffset = analogOffsetMax;
 
+	printf("Analog gain offset = %d\n", analogOffset);
 	//Sets the analog offset on the camera
 	error = ncCamSetAnalogOffset(camera, analogOffset);
 	if (error) {
@@ -282,6 +300,47 @@ tao_status detector_temperature(NcCam cam, double* temp_ptr)
   }
   return TAO_OK;
 }
+
+tao_status set_temperature(NcCam camera, double	ccdTargetTemp) {
+
+	int		error = NC_SUCCESS;		//We initialize an error flag variable
+	double	 ccdTargetTempMin, ccdTargetTempMax;
+
+	// If the calibrated em gain is available, set a temperature that will enable it
+	//Use of the calibrated gain, if available, is highly recommended
+	error = ncCamParamAvailable(camera, CALIBRATED_EM_GAIN, 0);
+	if (error == NC_SUCCESS)
+	{
+		error = ncCamGetCalibratedEmGainTempRange(camera, &ccdTargetTempMin, &ccdTargetTempMax);
+		if (error) {
+			return error;
+		}
+	}
+	else
+	{
+		//Inquire range of temperatures available
+		error = ncCamGetTargetDetectorTempRange(camera, &ccdTargetTempMin, &ccdTargetTempMax);
+		if (error) {
+			return error;
+		}
+	}
+
+	if (ccdTargetTemp < ccdTargetTempMin)
+		ccdTargetTemp = ccdTargetTempMin;
+	if (ccdTargetTemp > ccdTargetTempMax)
+		ccdTargetTemp = ccdTargetTempMax;
+
+	//For the purpose of this example we will use the median value
+	printf("Target Temperature = %f\n", ccdTargetTemp);
+	//Sets the ccd target temperature on the camera
+	error = ncCamSetTargetDetectorTemp(camera, ccdTargetTemp);
+	if (error) {
+		return error;
+	}
+
+	return error;
+}
+
 /*---------------------------------------------------------------------------*/
 /* Status*/
 
@@ -306,9 +365,15 @@ tao_status cam_open(int unit, int channel, int nbrBuffer, NcCam* cam)
   return TAO_OK;
 }
 // Start
-tao_status cam_set_ready(NcCam cam){
+tao_status cam_take_image(NcCam cam){
 	int err = NC_SUCCESS;
   err = ncCamPrepareAcquisition(cam,1);
+	if(err){
+    error_push(__func__, err);
+    return TAO_ERROR;
+  }
+
+	err = ncCamBeginAcquisition(cam);
 	if(err){
     error_push(__func__, err);
     return TAO_ERROR;
@@ -409,6 +474,11 @@ tao_status set_ROI(NcCam camera,int width, int height)
 		if (error) {
 			return error;
 		}
+
+
+		int w,h = 0;
+		ncCamGetMRoiSize(camera, 0, &w ,&h);
+		printf("ROI is set to width = %d, height = %d\n",w, h);
 		return TAO_OK;
 }
 // SaveImage
